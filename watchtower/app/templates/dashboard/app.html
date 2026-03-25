@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WatchTower SIEM</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/logo.svg">
+  <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+  <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <div class="brand-logo"><i class="fa-solid fa-tower-observation"></i></div>
+    <div class="brand-text">
+      <span class="brand-name">Watch<span class="accent">Tower</span></span>
+      <span class="brand-version">SIEM v1.0</span>
+    </div>
+    <button class="sidebar-toggle" id="sidebarToggle"><i class="fa-solid fa-bars"></i></button>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-section-label">Overview</div>
+    <a href="#" class="nav-item active" data-page="dashboard"><i class="fa-solid fa-gauge-high"></i><span>Dashboard</span></a>
+    <div class="nav-section-label">Events</div>
+    <a href="#" class="nav-item" data-page="events"><i class="fa-solid fa-list-ul"></i><span>Event Explorer</span></a>
+    <a href="#" class="nav-item" data-page="incidents"><i class="fa-solid fa-fire"></i><span>Incidents</span><span class="nav-badge" id="incidentBadge" style="display:none">0</span></a>
+    <div class="nav-section-label">Detection</div>
+    <a href="#" class="nav-item" data-page="rules"><i class="fa-solid fa-shield-halved"></i><span>Detection Rules</span></a>
+    <a href="#" class="nav-item" data-page="threat-intel"><i class="fa-solid fa-crosshairs"></i><span>Threat Intel</span></a>
+    <div class="nav-section-label">Administration</div>
+    <a href="#" class="nav-item" data-page="agents"><i class="fa-solid fa-server"></i><span>Agents</span></a>
+    <a href="#" class="nav-item" data-page="users"><i class="fa-solid fa-users"></i><span>Users</span><span class="nav-admin-only">Admin</span></a>
+    <a href="#" class="nav-item" data-page="compliance"><i class="fa-solid fa-file-certificate"></i><span>Compliance</span></a>
+    <a href="#" class="nav-item" data-page="audit-log"><i class="fa-solid fa-scroll"></i><span>Audit Log</span></a>
+    <a href="#" class="nav-item" data-page="settings"><i class="fa-solid fa-sliders"></i><span>Settings</span></a>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="user-info" id="userInfoSidebar">
+      <div class="user-avatar" id="userAvatarSidebar">A</div>
+      <div class="user-details">
+        <span class="user-name" id="userNameSidebar">Admin</span>
+        <span class="user-role" id="userRoleSidebar">super_admin</span>
+      </div>
+    </div>
+    <button class="btn-logout" id="logoutBtn" title="Sign out"><i class="fa-solid fa-right-from-bracket"></i></button>
+  </div>
+</aside>
+
+<!-- MAIN CONTENT -->
+<div class="main-wrapper" id="mainWrapper">
+  <header class="topbar">
+    <div class="topbar-left"><button class="mobile-menu-btn" id="mobileMenuBtn" title="Menu"><i class="fa-solid fa-bars"></i></button>
+      <div class="page-title" id="pageTitle">Dashboard</div>
+      <div class="breadcrumb-text" id="breadcrumb">Overview</div>
+    </div>
+    <div class="topbar-right">
+      <div class="live-indicator" id="liveIndicator"><span class="live-dot"></span>LIVE</div>
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" class="topbar-search" placeholder="Search events, incidents…" id="globalSearch">
+      </div>
+      <div class="notif-wrap" id="notifWrap">
+        <button class="icon-btn" id="notifBtn" title="Notifications">
+          <i class="fa-solid fa-bell"></i>
+          <span class="notif-count" id="notifCount" style="display:none">0</span>
+        </button>
+        <div class="notif-dropdown" id="notifDropdown">
+          <div class="notif-header"><span>Notifications</span><button class="btn-link" id="markAllReadBtn">Mark all read</button></div>
+          <div class="notif-list" id="notifList"><div class="notif-empty">No notifications</div></div>
+        </div>
+      </div>
+      <button class="icon-btn" id="refreshBtn" title="Refresh"><i class="fa-solid fa-arrows-rotate"></i></button>
+    </div>
+  </header>
+  <main class="page-content" id="pageContent">
+    <div class="loading-spinner"><div class="spinner-border text-info" role="status"></div><p>Loading…</p></div>
+  </main>
+</div>
+
+<!-- ═══════════════════ PAGE TEMPLATES ═══════════════════════════════════════ -->
+
+<template id="tpl-dashboard">
+<div class="fade-in">
+  <div class="metrics-grid" id="metricsGrid">
+    <div class="metric-card critical"><div class="metric-icon"><i class="fa-solid fa-skull-crossbones"></i></div><div class="metric-body"><div class="metric-value" id="m-critical-incidents">—</div><div class="metric-label">Critical Incidents</div></div></div>
+    <div class="metric-card high"><div class="metric-icon"><i class="fa-solid fa-fire-flame-curved"></i></div><div class="metric-body"><div class="metric-value" id="m-open-incidents">—</div><div class="metric-label">Open Incidents</div></div></div>
+    <div class="metric-card info"><div class="metric-icon"><i class="fa-solid fa-list-check"></i></div><div class="metric-body"><div class="metric-value" id="m-events-24h">—</div><div class="metric-label">Events (24h)</div></div></div>
+    <div class="metric-card success"><div class="metric-icon"><i class="fa-solid fa-server"></i></div><div class="metric-body"><div class="metric-value" id="m-online-agents">—</div><div class="metric-label">Online Agents</div><div class="metric-sub" id="m-total-agents"></div></div></div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card wide" style="height:220px">
+      <div class="chart-header">
+        <h3><i class="fa-solid fa-chart-bar me-2" style="color:var(--wt-accent2)"></i>Incident Trend</h3>
+        <div class="chart-actions">
+          <button class="btn-chip active" data-days="7">7d</button>
+          <button class="btn-chip" data-days="30">30d</button>
+        </div>
+      </div>
+      <canvas id="incidentTrendChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-header"><h3><i class="fa-solid fa-chart-pie me-2" style="color:var(--wt-accent)"></i>Severity (24h)</h3></div>
+      <canvas id="severityDonutChart" height="180"></canvas>
+    </div>
+  </div>
+  <div class="data-card">
+    <div class="data-card-header">
+      <h3><i class="fa-solid fa-fire me-2 text-red"></i>Active Incidents</h3>
+      <button class="btn-wt btn-sm" data-page="incidents">View All <i class="fa-solid fa-arrow-right ms-1"></i></button>
+    </div>
+    <div class="table-responsive">
+      <table class="wt-table" id="recentIncidentsTable">
+        <thead><tr><th>Severity</th><th>Title</th><th>Host</th><th>MITRE</th><th>Age</th><th>Status</th><th></th></tr></thead>
+        <tbody id="recentIncidentsTbody"><tr><td colspan="7" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-info me-2"></div>Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="charts-row">
+    <div class="chart-card"><div class="chart-header"><h3><i class="fa-solid fa-ranking-star me-2" style="color:var(--wt-yellow)"></i>Top Event Sources</h3></div><div id="topHostsList"></div></div>
+    <div class="chart-card" style="height:260px"><div class="chart-header"><h3><i class="fa-brands fa-fort-awesome me-2" style="color:var(--wt-accent2)"></i>MITRE ATT&CK Coverage</h3></div><canvas id="mitreChart"></canvas></div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-events">
+<div class="fade-in">
+  <div class="page-toolbar">
+    <div class="toolbar-filters">
+      <select class="wt-select" id="evtSeverityFilter"><option value="">All Severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="info">Info</option></select>
+      <select class="wt-select" id="evtCategoryFilter"><option value="">All Categories</option><option value="authentication">Authentication</option><option value="account_management">Account Management</option><option value="process_execution">Process Execution</option><option value="network">Network</option><option value="powershell">PowerShell</option><option value="credential_access">Credential Access</option><option value="lateral_movement">Lateral Movement</option><option value="defense_evasion">Defense Evasion</option><option value="persistence">Persistence</option><option value="privilege_escalation">Privilege Escalation</option><option value="scheduled_task">Scheduled Task</option><option value="service">Service</option><option value="registry">Registry</option><option value="file_system">File System</option><option value="wmi">WMI</option></select>
+      <input type="text" class="wt-input" id="evtHostFilter" placeholder="Hostname…">
+      <input type="text" class="wt-input wide" id="evtSearch" placeholder="Search events…">
+      <input type="datetime-local" class="wt-input" id="evtStartTime" title="Start time">
+      <input type="datetime-local" class="wt-input" id="evtEndTime" title="End time">
+      <button class="btn-wt btn-primary" id="evtSearchBtn"><i class="fa-solid fa-magnifying-glass me-1"></i>Search</button>
+      <button class="btn-wt" id="evtExportBtn"><i class="fa-solid fa-file-csv me-1"></i>Export CSV</button>
+    </div>
+  </div>
+  <div class="data-card">
+    <div class="data-card-header">
+      <h3>Security Events <span class="count-badge" id="evtTotal">—</span></h3>
+      <div class="pagination-info" id="evtPaginationInfo"></div>
+    </div>
+    <div class="table-responsive">
+      <table class="wt-table">
+        <thead><tr><th>Timestamp</th><th>Host</th><th>Event ID</th><th>Category</th><th>Severity</th><th>User</th><th>Process / Source</th><th>MITRE</th><th></th></tr></thead>
+        <tbody id="eventsTbody"><tr><td colspan="9" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-info me-2"></div>Loading events…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pagination-bar" id="evtPaginationBar"></div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-incidents">
+<div class="fade-in">
+  <div class="page-toolbar">
+    <div class="toolbar-filters">
+      <select class="wt-select" id="incStatusFilter"><option value="">All Statuses</option><option value="open" selected>Open</option><option value="investigating">Investigating</option><option value="contained">Contained</option><option value="resolved">Resolved</option><option value="false_positive">False Positive</option><option value="closed">Closed</option></select>
+      <select class="wt-select" id="incSeverityFilter"><option value="">All Severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+      <input type="text" class="wt-input" id="incHostFilter" placeholder="Hostname…">
+      <button class="btn-wt btn-primary" id="incSearchBtn"><i class="fa-solid fa-magnifying-glass me-1"></i>Filter</button>
+    </div>
+  </div>
+  <div class="data-card">
+    <div class="data-card-header"><h3>Incidents <span class="count-badge" id="incTotal">—</span></h3></div>
+    <div class="table-responsive">
+      <table class="wt-table">
+        <thead><tr><th>Severity</th><th>Title</th><th>Host</th><th>MITRE</th><th>Status</th><th>Assigned</th><th>Created</th><th></th></tr></thead>
+        <tbody id="incidentsTbody"><tr><td colspan="8" class="text-center text-muted py-4"><div class="spinner-border spinner-border-sm text-info me-2"></div>Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pagination-bar" id="incPaginationBar"></div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-incident-detail">
+<div class="fade-in" id="incidentDetailView">
+  <div class="detail-header">
+    <button class="btn-back" id="incBackBtn"><i class="fa-solid fa-arrow-left me-2"></i>Back to Incidents</button>
+    <div class="detail-actions" id="incDetailActions"></div>
+  </div>
+  <div class="detail-grid">
+    <div class="detail-main">
+      <div class="detail-card">
+        <div class="incident-title-row">
+          <div class="sev-badge-lg" id="incDetailSev"></div>
+          <h2 id="incDetailTitle">Loading…</h2>
+        </div>
+        <div class="incident-meta-row" id="incDetailMeta"></div>
+        <div class="incident-desc" id="incDetailDesc"></div>
+        <div class="mitre-tags" id="incDetailMitre"></div>
+      </div>
+      <div class="detail-card" id="aiCard">
+        <div class="detail-card-header">
+          <h3><i class="fa-solid fa-wand-magic-sparkles me-2" style="color:var(--wt-purple)"></i>AI Remediation Guidance</h3>
+          <button class="btn-wt btn-sm" id="genAiBtn"><i class="fa-solid fa-robot me-1"></i>Generate</button>
+        </div>
+        <div id="aiContent" class="ai-content"><div class="ai-empty"><i class="fa-solid fa-robot me-2" style="opacity:.3"></i>Click Generate to get AI-powered remediation advice.</div></div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-card-header"><h3><i class="fa-solid fa-note-sticky me-2 text-yellow"></i>Analyst Notes</h3></div>
+        <div id="analystNotes"></div>
+        <div class="add-note-form">
+          <textarea class="wt-textarea" id="noteTextarea" placeholder="Add investigation note… (supports plain text)" rows="3"></textarea>
+          <div class="d-flex gap-2 mt-2">
+            <button class="btn-wt btn-primary" id="addNoteBtn"><i class="fa-solid fa-plus me-1"></i>Add Note</button>
+          </div>
+        </div>
+      </div>
+      <div class="detail-card">
+        <div class="detail-card-header"><h3><i class="fa-solid fa-timeline me-2 text-accent"></i>Timeline</h3></div>
+        <div id="incidentTimeline"></div>
+      </div>
+    </div>
+    <div class="detail-sidebar">
+      <div class="detail-card">
+        <h4 class="sidebar-section-title">Incident Details</h4>
+        <div class="detail-kv-list" id="incDetailKV"></div>
+      </div>
+      <div class="detail-card">
+        <h4 class="sidebar-section-title">Update Status</h4>
+        <select class="wt-select w-100 mb-2" id="incStatusUpdate"></select>
+        <input type="text" class="wt-input w-100 mb-2" id="incAssigneeUpdate" placeholder="Assign to username…">
+        <button class="btn-wt btn-primary w-100" id="incUpdateBtn"><i class="fa-solid fa-floppy-disk me-1"></i>Update</button>
+      </div>
+      <div class="detail-card">
+        <h4 class="sidebar-section-title">Triggering Events <span id="triggeringCount" style="font-size:.7rem;color:var(--wt-muted);font-weight:400"></span></h4>
+        <div id="triggeringEventsList" class="triggering-events"></div>
+      </div>
+    </div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-rules">
+<div class="fade-in">
+  <div class="page-toolbar">
+    <div class="toolbar-filters">
+      <input type="text" class="wt-input wide" id="ruleSearch" placeholder="Search rules…">
+      <select class="wt-select" id="ruleSeverityFilter"><option value="">All Severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+      <select class="wt-select" id="ruleCategoryFilter"><option value="">All Categories</option><option value="authentication">Authentication</option><option value="credential_access">Credential Access</option><option value="process_execution">Process Execution</option><option value="powershell">PowerShell</option><option value="lateral_movement">Lateral Movement</option><option value="persistence">Persistence</option><option value="defense_evasion">Defense Evasion</option><option value="privilege_escalation">Privilege Escalation</option><option value="scheduled_task">Scheduled Task</option><option value="service">Service</option><option value="registry">Registry</option><option value="network">Network</option><option value="file_system">File System</option><option value="wmi">WMI</option></select>
+      <select class="wt-select" id="ruleEnabledFilter"><option value="">All States</option><option value="true">Enabled</option><option value="false">Disabled</option></select>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn-wt btn-success" id="seedRulesBtn"><i class="fa-solid fa-download me-1"></i>Seed Built-ins</button>
+      <button class="btn-wt btn-primary" id="createRuleBtn"><i class="fa-solid fa-plus me-1"></i>New Rule</button>
+    </div>
+  </div>
+  <div class="data-card">
+    <div class="data-card-header"><h3>Detection Rules <span class="count-badge" id="rulesTotal">—</span></h3></div>
+    <div class="table-responsive">
+      <table class="wt-table">
+        <thead><tr><th>Status</th><th>Name</th><th>Severity</th><th>Category</th><th>MITRE</th><th>Hits</th><th>Last Triggered</th><th>Actions</th></tr></thead>
+        <tbody id="rulesTbody"><tr><td colspan="8" class="text-center py-4"><div class="spinner-border spinner-border-sm text-info me-2"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-agents">
+<div class="fade-in">
+  <div class="page-toolbar">
+    <div class="toolbar-filters">
+      <select class="wt-select" id="agentStatusFilter"><option value="">All Statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="decommissioned">Decommissioned</option></select>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn-wt btn-primary" id="registerAgentBtn"><i class="fa-solid fa-plus me-1"></i>Register Agent</button>
+    </div>
+  </div>
+  <div class="data-card">
+    <div class="data-card-header"><h3>Monitored Agents <span class="count-badge" id="agentsTotal">—</span></h3></div>
+    <div class="table-responsive">
+      <table class="wt-table">
+        <thead><tr><th>Status</th><th>Hostname / IP</th><th>OS Version</th><th>Last Seen</th><th>Events</th><th>Sysmon</th><th>Version</th><th>Actions</th></tr></thead>
+        <tbody id="agentsTbody"><tr><td colspan="8" class="text-center py-4"><div class="spinner-border spinner-border-sm text-info me-2"></div></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-compliance">
+<div class="fade-in">
+  <div class="page-toolbar">
+    <div class="toolbar-filters">
+      <select class="wt-select" id="compFramework">
+        <option value="soc2">SOC 2 Type II</option>
+        <option value="nist_csf">NIST CSF 2.0</option>
+        <option value="cis_v8">CIS Controls v8</option>
+        <option value="iso27001">ISO 27001:2022</option>
+      </select>
+      <select class="wt-select" id="compPeriod">
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="365">Last 365 days</option>
+      </select>
+      <button class="btn-wt btn-primary" id="genReportBtn"><i class="fa-solid fa-file-chart-column me-1"></i>Generate Report</button>
+    </div>
+    <div class="toolbar-actions">
+      <button class="btn-wt" id="postureBtn"><i class="fa-solid fa-gauge-high me-1"></i>All Frameworks</button>
+    </div>
+  </div>
+  <!-- Overall posture banner (hidden until loaded) -->
+  <div id="postureOverview" style="display:none;margin-bottom:20px"></div>
+  <div id="complianceReportArea">
+    <div class="empty-state"><i class="fa-solid fa-file-certificate"></i><h3>Compliance Reports</h3><p>Select a framework and click Generate Report, or click All Frameworks for a posture overview.</p></div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-audit-log">
+<div class="fade-in">
+  <div class="data-card">
+    <div class="data-card-header"><h3>Audit Log <span class="count-badge" id="auditTotal">—</span></h3></div>
+    <div class="table-responsive">
+      <table class="wt-table">
+        <thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Resource</th><th>IP Address</th><th>Details</th></tr></thead>
+        <tbody id="auditTbody"><tr><td colspan="6" class="text-center text-muted py-4">Loading…</td></tr></tbody>
+      </table>
+    </div>
+    <div class="pagination-bar" id="auditPaginationBar"></div>
+  </div>
+</div>
+</template>
+
+<template id="tpl-settings">
+<div class="fade-in">
+  <div class="settings-grid">
+    <div class="settings-section">
+      <h3 class="settings-section-title"><i class="fa-solid fa-building"></i>Organization</h3>
+      <div class="settings-row"><label>Organization Name</label><input type="text" class="wt-input" id="s-org-name" style="width:200px" placeholder="Your Org Name"></div>
+      <div class="settings-row"><label>Security Contact Email</label><input type="email" class="wt-input" id="s-contact-email" style="width:200px" placeholder="security@company.com"></div>
+    </div>
+    <div class="settings-section">
+      <h3 class="settings-section-title"><i class="fa-solid fa-database"></i>Data Retention</h3>
+      <div class="settings-row"><label>Raw Events (days)</label><input type="number" class="wt-input" id="s-raw-events" min="1" max="3650" value="90" style="width:80px"></div>
+      <div class="settings-row"><label>Incidents (days)</label><input type="number" class="wt-input" id="s-incidents" min="1" max="3650" value="365" style="width:80px"></div>
+      <div class="settings-row"><label>Audit Log (days)</label><input type="number" class="wt-input" id="s-audit-log" min="1" max="3650" value="730" style="width:80px"></div>
+      <div class="settings-row"><label>Auto-close False Positives (days)</label><input type="number" class="wt-input" id="s-auto-close-fp" min="1" max="365" value="7" style="width:80px"></div>
+    </div>
+    <div class="settings-section">
+      <h3 class="settings-section-title"><i class="fa-solid fa-bell"></i>Alerting</h3>
+      <div class="settings-row"><label>Email Alerts</label><div class="wt-toggle"><input type="checkbox" id="s-email-enabled" checked><label for="s-email-enabled"></label></div></div>
+      <div class="settings-row"><label>Slack Alerts</label><div class="wt-toggle"><input type="checkbox" id="s-slack-enabled"><label for="s-slack-enabled"></label></div></div>
+      <div class="settings-row"><label>Minimum Alert Severity</label><select class="wt-select" id="s-min-severity"><option value="info">Info</option><option value="low">Low</option><option value="medium" selected>Medium</option><option value="high">High</option><option value="critical">Critical</option></select></div>
+    </div>
+    <div class="settings-section full-width d-flex align-items-center gap-3">
+      <button class="btn-wt btn-primary" id="saveSettingsBtn"><i class="fa-solid fa-floppy-disk me-1"></i>Save Settings</button>
+      <span style="font-size:.78rem;color:var(--wt-muted)">Changes apply on next collection cycle.</span>
+    </div>
+  </div>
+</div>
+</template>
+
+<!-- ═══════════════════ MODALS ════════════════════════════════════════════════ -->
+
+<!-- Event detail -->
+<div class="modal fade" id="eventDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content wt-modal">
+      <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-magnifying-glass me-2"></i>Event Details</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body" id="eventDetailBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Register agent -->
+<div class="modal fade" id="registerAgentModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content wt-modal">
+      <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-server me-2"></i>Register New Agent</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="mb-3"><label class="form-label">Hostname <span class="text-danger">*</span></label><input type="text" class="form-control wt-form-control" id="agentHostname" placeholder="WORKSTATION-01"></div>
+        <div class="mb-3"><label class="form-label">IP Address <span class="text-danger">*</span></label><input type="text" class="form-control wt-form-control" id="agentIP" placeholder="192.168.1.100"></div>
+        <div class="mb-3"><label class="form-label">OS Version <span class="text-danger">*</span></label><input type="text" class="form-control wt-form-control" id="agentOS" placeholder="Windows 11 Pro 23H2"></div>
+        <div class="mb-3 form-check"><input type="checkbox" class="form-check-input" id="agentSysmon"><label class="form-check-label" for="agentSysmon">Sysmon installed</label></div>
+        <div class="alert alert-success" id="regAgentSuccess" style="display:none">
+          <strong><i class="fa-solid fa-check-circle me-1"></i>Agent Registered!</strong><br>
+          API Key: <code id="regApiKey" class="user-select-all"></code><br>
+          <button class="btn btn-sm btn-outline-success mt-2" onclick="copyText(document.getElementById('regApiKey').textContent,'API key copied!')"><i class="fa-solid fa-copy me-1"></i>Copy Key</button><br>
+          <small class="text-muted">Save this key securely — it won't be shown again.</small>
+        </div>
+        <div class="alert alert-danger" id="regAgentError" style="display:none"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button><button type="button" class="btn btn-primary" id="confirmRegisterAgent">Register Agent</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Rotated key display -->
+<div class="modal fade" id="rotatedKeyModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content wt-modal">
+      <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-key me-2"></i>New API Key — <span id="rotateKeyHostname"></span></h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <div class="alert alert-warning"><i class="fa-solid fa-triangle-exclamation me-2"></i>Save this key now — it will <strong>not</strong> be shown again.</div>
+        <code id="rotatedKey" class="d-block p-3 rounded" style="background:var(--wt-surface2);word-break:break-all;font-size:.8rem"></code>
+        <button class="btn-wt btn-primary mt-3 w-100" id="copyRotatedKeyBtn"><i class="fa-solid fa-copy me-1"></i>Copy to Clipboard</button>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Rule Builder -->
+<div class="modal fade" id="ruleBuilderModal" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content wt-modal">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fa-solid fa-shield-halved me-2"></i>Create Detection Rule</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="rule-builder">
+          <!-- Left column -->
+          <div>
+            <h6 style="font-size:.78rem;font-weight:700;color:var(--wt-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">Basic Information</h6>
+            <div class="mb-3"><label class="form-label">Rule Name <span class="text-danger">*</span></label><input type="text" class="form-control wt-form-control" id="rbName" placeholder="e.g. Suspicious PowerShell Execution"></div>
+            <div class="mb-3"><label class="form-label">Description <span class="text-danger">*</span></label><textarea class="wt-textarea" id="rbDescription" rows="2" placeholder="What does this rule detect?"></textarea></div>
+            <div class="row mb-3">
+              <div class="col"><label class="form-label">Category</label>
+                <select class="form-select wt-form-control" id="rbCategory">
+                  <option value="authentication">Authentication</option><option value="credential_access">Credential Access</option>
+                  <option value="process_execution">Process Execution</option><option value="powershell">PowerShell</option>
+                  <option value="lateral_movement">Lateral Movement</option><option value="persistence">Persistence</option>
+                  <option value="defense_evasion">Defense Evasion</option><option value="privilege_escalation">Privilege Escalation</option>
+                  <option value="scheduled_task">Scheduled Task</option><option value="service">Service</option>
+                  <option value="registry">Registry</option><option value="network">Network</option>
+                  <option value="file_system">File System</option><option value="wmi">WMI</option><option value="other">Other</option>
+                </select>
+              </div>
+              <div class="col"><label class="form-label">Severity</label>
+                <select class="form-select wt-form-control" id="rbSeverity">
+                  <option value="critical">Critical</option><option value="high">High</option>
+                  <option value="medium" selected>Medium</option><option value="low">Low</option><option value="info">Info</option>
+                </select>
+              </div>
+            </div>
+            <div class="mb-3"><label class="form-label">MITRE Technique(s)</label><input type="text" class="form-control wt-form-control" id="rbMitreTech" placeholder="T1059.001, T1078 (comma-separated)"></div>
+            <div class="mb-3"><label class="form-label">MITRE Tactic(s)</label><input type="text" class="form-control wt-form-control" id="rbMitreTactic" placeholder="Execution, Credential Access (comma-separated)"></div>
+          </div>
+          <!-- Right column -->
+          <div>
+            <h6 style="font-size:.78rem;font-weight:700;color:var(--wt-muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:12px">Detection Condition</h6>
+            <div class="mb-3">
+              <label class="form-label">Windows Event IDs to match <span class="text-danger">*</span></label>
+              <div class="event-id-tags" id="rbEventIdTags" onclick="document.getElementById('rbEventIdInput')?.focus()"></div>
+              <small class="text-muted" style="font-size:.72rem">Type an ID and press Enter or Space to add. E.g. 4625 (failed logon), 4688 (process creation)</small>
+            </div>
+            <div class="row mb-3">
+              <div class="col"><label class="form-label">Threshold count</label><input type="number" class="form-control wt-form-control" id="rbThreshold" min="1" value="1"><small class="text-muted" style="font-size:.72rem">How many matches to trigger</small></div>
+              <div class="col"><label class="form-label">Window (seconds)</label><input type="number" class="form-control wt-form-control" id="rbWindow" min="1" value="300"><small class="text-muted" style="font-size:.72rem">Time window for threshold</small></div>
+            </div>
+            <div class="form-check mb-3">
+              <input type="checkbox" class="form-check-input" id="rbExcludeMachines">
+              <label class="form-check-label" for="rbExcludeMachines" style="font-size:.82rem">Exclude machine accounts (accounts ending in $)</label>
+            </div>
+            <div class="mb-3">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <label class="form-label mb-0">Field Conditions (optional)</label>
+                <button class="btn-wt btn-sm" onclick="_rbFieldConds.push({field:'',op:'contains',val:''});renderFieldConds()"><i class="fa-solid fa-plus me-1"></i>Add</button>
+              </div>
+              <div class="field-conditions" id="rbFieldConds"></div>
+              <small class="text-muted" style="font-size:.72rem">Fields: process_name, command_line, source_ip, registry_key, file_path, service_name, etc.</small>
+            </div>
+            <button class="btn-wt w-100 mb-3" onclick="testRulePreview()"><i class="fa-solid fa-flask me-1"></i>Test Against Recent Events</button>
+            <div id="rbTestResult" style="display:none"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="rbSaveBtn"><i class="fa-solid fa-floppy-disk me-1"></i>Save Rule</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Create User -->
+<div class="modal fade" id="createUserModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content wt-modal">
+      <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-user-plus me-2"></i>Create New User</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <form id="createUserForm">
+          <div class="mb-3"><label class="form-label">Username <span class="text-danger">*</span></label><input type="text" class="form-control wt-form-control" id="cuUsername" placeholder="jdoe" autocomplete="off"></div>
+          <div class="mb-3"><label class="form-label">Email <span class="text-danger">*</span></label><input type="email" class="form-control wt-form-control" id="cuEmail" placeholder="jdoe@company.com"></div>
+          <div class="mb-3"><label class="form-label">Full Name</label><input type="text" class="form-control wt-form-control" id="cuFullName" placeholder="John Doe"></div>
+          <div class="mb-3"><label class="form-label">Password <span class="text-danger">*</span></label><input type="password" class="form-control wt-form-control" id="cuPassword" placeholder="Min 12 chars, upper+lower+digit+symbol" autocomplete="new-password"></div>
+          <div class="mb-3"><label class="form-label">Role</label>
+            <select class="form-select wt-form-control" id="cuRole">
+              <option value="analyst" selected>Analyst</option>
+              <option value="admin">Admin</option>
+              <option value="read_only">Read Only</option>
+              <option value="super_admin">Super Admin</option>
+            </select>
+          </div>
+        </form>
+        <div class="alert alert-danger" id="createUserError" style="display:none"></div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="confirmCreateUser">Create User</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Edit User -->
+<div class="modal fade" id="editUserModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content wt-modal">
+      <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-user-pen me-2"></i>Edit User</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <input type="hidden" id="editUserId">
+        <div class="mb-3"><label class="form-label">Full Name</label><input type="text" class="form-control wt-form-control" id="euFullName" placeholder="Full Name"></div>
+        <div class="mb-3"><label class="form-label">Role</label>
+          <select class="form-select wt-form-control" id="euRole">
+            <option value="analyst">Analyst</option><option value="admin">Admin</option>
+            <option value="read_only">Read Only</option><option value="super_admin">Super Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="confirmEditUser">Save Changes</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Add IOC -->
+<div class="modal fade" id="addIocModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content wt-modal">
+      <div class="modal-header"><h5 class="modal-title"><i class="fa-solid fa-crosshairs me-2"></i>Add Threat Indicator (IOC)</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div>
+      <div class="modal-body">
+        <form id="addIocForm">
+          <div class="mb-3"><label class="form-label">IOC Value <span class="text-danger">*</span></label><input type="text" class="form-control wt-form-control" id="iocValue" placeholder="192.168.1.1, evil.com, sha256hash…"></div>
+          <div class="mb-3"><label class="form-label">Type</label>
+            <select class="form-select wt-form-control" id="iocType"><option value="ip">IP Address</option><option value="domain">Domain</option><option value="hash">File Hash</option><option value="url">URL</option><option value="email">Email</option></select>
+          </div>
+          <div class="mb-3"><label class="form-label">Threat Type</label><input type="text" class="form-control wt-form-control" id="iocThreatType" placeholder="malware, c2, phishing, ransomware…"></div>
+          <div class="mb-3"><label class="form-label">Confidence: <span id="confVal">50</span>%</label><input type="range" class="form-range" id="iocConfidence" min="0" max="100" value="50" oninput="document.getElementById('confVal').textContent=this.value"></div>
+          <div class="mb-3"><label class="form-label">Source</label><input type="text" class="form-control wt-form-control" id="iocSource" placeholder="Manual, VirusTotal, MISP…" value="Manual"></div>
+        </form>
+        <input type="file" id="iocCsvImport" accept=".csv" style="display:none">
+        <div class="alert alert-danger" id="addIocError" style="display:none"></div>
+        <small class="text-muted" style="font-size:.72rem">CSV import format: value,type,threat_type,confidence,source</small>
+      </div>
+      <div class="modal-footer"><button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn btn-primary" id="confirmAddIoc">Add IOC</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- Sidebar overlay (mobile) -->
+<div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+<!-- Toast container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer"></div>
+
+<script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+<script src="/static/vendor/chartjs/chart.umd.min.js"></script>
+<script src="/static/js/api.js"></script>
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/dashboard.js"></script>
+</body>
+</html>

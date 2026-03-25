@@ -1,0 +1,57 @@
+# WatchTower SIEM — .gitignore
+
+# Environment
+.env
+.env.local
+*.env
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Logs
+logs/
+*.log
+
+# MongoDB / Redis data (if running locally)
+data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# GeoIP DB (large binary, download separately)
+*.mmdb
+
+# Docker
+.docker/
+.env
+cookies.txt
+*.db

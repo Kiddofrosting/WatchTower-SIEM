@@ -1,0 +1,19 @@
+# FIX: added .dockerignore to stop .git, .idea, docs, and test files from bloating the build context
+.git
+.gitignore
+.idea
+.env
+*.md
+*.docx
+*.zip
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.coverage
+*.egg-info
+dist
+build
+.DS_Store
+logs/

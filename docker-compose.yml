@@ -1,0 +1,188 @@
+version: "3.9"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# WatchTower SIEM - Full Stack Docker Compose
+# Production-ready: MongoDB, Redis, Flask API, Celery workers, Celery Beat, Flower
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-common-env: &common-env
+  env_file: .env
+  environment:
+    - MONGO_URI=${MONGO_URI:-mongodb://watchtower_user:watchtowerpass@mongodb:27017/watchtower?authSource=watchtower}
+    - REDIS_URL=${REDIS_URL:-redis://:redispass@redis:6379/0}
+    - CELERY_BROKER_URL=${CELERY_BROKER_URL:-redis://:redispass@redis:6379/0}
+    - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:-redis://:redispass@redis:6379/1}
+    # FIX: removed SESSION_COOKIE_SECURE=false override — was forcing insecure cookies in all Docker deployments
+
+services:
+  # ── MongoDB ─────────────────────────────────────────────────────────────────
+  mongodb:
+    image: mongo:7.0
+    container_name: watchtower_mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpass}
+      MONGO_INITDB_DATABASE: watchtower
+    volumes:
+      - mongodb_data:/data/db
+      - ./docker/mongo-init.js:/docker-entrypoint-initdb.d/init.js:ro
+    # FIX: removed ports binding — MongoDB should not be reachable outside Docker network in production
+    # Uncomment below ONLY for local development:
+    # ports:
+    #   - "127.0.0.1:27017:27017"
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - watchtower-net
+
+  # ── Redis ────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2-alpine
+    container_name: watchtower_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redispass} --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    # FIX: removed ports binding — Redis should not be reachable outside Docker network in production
+    # Uncomment below ONLY for local development:
+    # ports:
+    #   - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:-redispass} ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - watchtower-net
+
+  # ── Flask API ────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: watchtower_api
+    restart: unless-stopped
+    <<: *common-env
+    ports:
+      - "5000:5000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - logs_data:/app/logs
+    networks:
+      - watchtower-net
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.watchtower.rule=Host(`watchtower.localhost`)"
+
+  # ── Celery Worker (Detection) ────────────────────────────────────────────────
+  celery-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: watchtower_celery_worker
+    restart: unless-stopped
+    <<: *common-env
+    command: celery -A watchtower.celery_workers.celery_app worker
+      --loglevel=info
+      --queues=detection,ai,maintenance
+      --concurrency=4
+      --max-tasks-per-child=500
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - logs_data:/app/logs
+    networks:
+      - watchtower-net
+
+  # ── Celery Beat (Scheduler) ──────────────────────────────────────────────────
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: watchtower_celery_beat
+    restart: unless-stopped
+    <<: *common-env
+    command: celery -A watchtower.celery_workers.celery_app beat --loglevel=info
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      # FIX: added dependency on celery-worker so beat doesn't queue tasks before worker is ready
+      celery-worker:
+        condition: service_started
+    networks:
+      - watchtower-net
+
+  # ── Flower (Celery monitoring) ────────────────────────────────────────────────
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: watchtower_flower
+    restart: unless-stopped
+    <<: *common-env
+    command: celery -A watchtower.celery_workers.celery_app flower
+      --port=5555
+      --basic_auth=${FLOWER_USER:-admin}:${FLOWER_PASSWORD:-flowerpass}
+      --db=/app/logs/flower.db
+      --persistent=True
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      celery-worker:
+        condition: service_started
+    volumes:
+      - logs_data:/app/logs
+    # FIX: added healthcheck for Flower
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5555/healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    networks:
+      - watchtower-net
+
+  # ── Database Seeder (runs once, then exits) ───────────────────────────────────
+  seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: watchtower_seeder
+    restart: "no"
+    <<: *common-env
+    command: python seed_admin.py
+      --username admin
+      --email ${SUPER_ADMIN_EMAIL:-admin@watchtower.local}
+      --password ${SUPER_ADMIN_PASSWORD:-Admin@WatchTower1!}
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    networks:
+      - watchtower-net
+    profiles:
+      - seed
+
+volumes:
+  mongodb_data:
+  redis_data:
+  logs_data:
+
+networks:
+  watchtower-net:
+    driver: bridge

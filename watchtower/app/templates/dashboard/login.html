@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="WatchTower SIEM - Login">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>WatchTower SIEM · Login</title>
+  <link rel="icon" type="image/svg+xml" href="/static/img/logo.svg">
+
+  <!-- Self-hosted vendor assets (no CDN / no Tracking Prevention issues) -->
+  <link rel="stylesheet" href="/static/vendor/bootstrap/bootstrap.min.css">
+  <link rel="stylesheet" href="/static/vendor/fontawesome/css/all.min.css">
+
+  <style>
+    :root {
+      --wt-bg: #0a0e1a;
+      --wt-surface: #0f1629;
+      --wt-border: #1e2d4a;
+      --wt-accent: #00d4ff;
+      --wt-accent2: #6c5ce7;
+      --wt-danger: #ff4757;
+      --wt-success: #2ed573;
+    }
+    * { box-sizing: border-box; }
+    body {
+      background: var(--wt-bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden;
+    }
+    .bg-grid {
+      position: fixed; inset: 0; z-index: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .bg-glow {
+      position: fixed; top: -200px; left: 50%; transform: translateX(-50%);
+      width: 800px; height: 600px; z-index: 0;
+      background: radial-gradient(ellipse, rgba(108,92,231,.15) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .login-card {
+      background: var(--wt-surface);
+      border: 1px solid var(--wt-border);
+      border-radius: 16px;
+      padding: 48px 40px;
+      width: 100%; max-width: 440px;
+      position: relative; z-index: 10;
+      box-shadow: 0 24px 64px rgba(0,0,0,.6), 0 0 0 1px rgba(0,212,255,.06);
+    }
+    .logo-area { text-align: center; margin-bottom: 36px; }
+    .logo-icon {
+      width: 64px; height: 64px;
+      background: linear-gradient(135deg, var(--wt-accent2), var(--wt-accent));
+      border-radius: 16px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 16px;
+      box-shadow: 0 8px 24px rgba(0,212,255,.25);
+    }
+    .logo-icon i { font-size: 28px; color: #fff; }
+    h1.brand { font-size: 1.75rem; font-weight: 700; color: #fff; margin: 0; letter-spacing: -.5px; }
+    .brand span { color: var(--wt-accent); }
+    .brand-sub { color: #5a6a8a; font-size: .85rem; margin-top: 4px; }
+    .form-label { color: #8892aa; font-size: .825rem; font-weight: 500; margin-bottom: 6px; }
+    .form-control {
+      background: rgba(255,255,255,.04);
+      border: 1px solid var(--wt-border);
+      border-radius: 8px; color: #e0e8f8;
+      padding: 12px 14px; transition: all .2s;
+    }
+    .form-control:focus {
+      background: rgba(0,212,255,.05);
+      border-color: var(--wt-accent);
+      box-shadow: 0 0 0 3px rgba(0,212,255,.12);
+      color: #fff;
+    }
+    .form-control::placeholder { color: #3a4a6a; }
+    .input-icon-wrap { position: relative; }
+    .input-icon-wrap i {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      color: #4a5a7a; font-size: .9rem; pointer-events: none;
+    }
+    .input-icon-wrap .form-control { padding-left: 38px; }
+    .btn-login {
+      background: linear-gradient(135deg, var(--wt-accent2), var(--wt-accent));
+      border: none; border-radius: 8px; color: #fff;
+      font-weight: 600; padding: 13px; font-size: 1rem;
+      width: 100%; cursor: pointer; transition: all .2s; letter-spacing: .3px;
+    }
+    .btn-login:hover { filter: brightness(1.15); transform: translateY(-1px); }
+    .btn-login:active { transform: translateY(0); }
+    .btn-login:disabled { opacity: .6; cursor: not-allowed; transform: none; }
+    .alert-error {
+      background: rgba(255,71,87,.1); border: 1px solid rgba(255,71,87,.3);
+      border-radius: 8px; color: #ff6b79;
+      padding: 12px 16px; font-size: .875rem; display: none;
+    }
+    .mfa-section { display: none; }
+    .spinner-border-sm { width: 1.1rem; height: 1.1rem; border-width: 2px; }
+    .security-badge {
+      display: flex; align-items: center; gap: 6px;
+      color: #3a4a6a; font-size: .75rem;
+      margin-top: 24px; justify-content: center;
+    }
+    .security-badge i { color: var(--wt-success); }
+    .forgot-link {
+      display: block; text-align: right;
+      font-size: .8rem; color: #4a6a9a;
+      text-decoration: none; margin-top: -8px; margin-bottom: 16px;
+    }
+    .forgot-link:hover { color: var(--wt-accent); }
+  </style>
+</head>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <div class="login-card">
+    <div class="logo-area">
+      <div class="logo-icon"><i class="fa-solid fa-tower-observation"></i></div>
+      <h1 class="brand">Watch<span>Tower</span></h1>
+      <p class="brand-sub">Security Information &amp; Event Management</p>
+    </div>
+
+    <div class="alert-error" id="alertError">
+      <i class="fa-solid fa-triangle-exclamation me-2"></i>
+      <span id="errorMsg">Invalid credentials</span>
+    </div>
+
+    <!-- Login form -->
+    <form id="loginForm" novalidate>
+      <div class="mb-3">
+        <label class="form-label">Username or Email</label>
+        <div class="input-icon-wrap">
+          <i class="fa-solid fa-user"></i>
+          <input type="text" class="form-control" id="username"
+            placeholder="Enter username" autocomplete="username" required>
+        </div>
+      </div>
+
+      <div class="mb-1">
+        <label class="form-label">Password</label>
+        <div class="input-icon-wrap">
+          <i class="fa-solid fa-lock"></i>
+          <input type="password" class="form-control" id="password"
+            placeholder="Enter password" autocomplete="current-password" required>
+        </div>
+      </div>
+
+      <a href="#" class="forgot-link" id="forgotLink">Forgot password?</a>
+
+      <div class="mfa-section mb-4" id="mfaSection">
+        <label class="form-label">
+          <i class="fa-solid fa-shield-halved me-1 text-info"></i>
+          Two-Factor Authentication Code
+        </label>
+        <input type="text" class="form-control text-center" id="mfaCode"
+          placeholder="000000" maxlength="6" autocomplete="one-time-code"
+          style="letter-spacing:.5em;font-size:1.2rem;">
+      </div>
+
+      <button type="submit" class="btn-login mt-2" id="submitBtn">
+        <span id="btnText"><i class="fa-solid fa-right-to-bracket me-2"></i>Sign In</span>
+        <span id="btnLoading" style="display:none">
+          <span class="spinner-border spinner-border-sm me-2"></span>Authenticating...
+        </span>
+      </button>
+    </form>
+
+    <!-- Forgot password form (hidden until needed) -->
+    <form id="forgotForm" novalidate style="display:none">
+      <p style="color:#8892aa;font-size:.875rem;margin-bottom:16px;">
+        Enter your account email and we'll send you a reset link.
+      </p>
+      <div class="mb-3">
+        <label class="form-label">Email address</label>
+        <div class="input-icon-wrap">
+          <i class="fa-solid fa-envelope"></i>
+          <input type="email" class="form-control" id="resetEmail"
+            placeholder="you@example.com" autocomplete="email">
+        </div>
+      </div>
+      <button type="submit" class="btn-login" id="resetBtn">
+        <span id="resetBtnText"><i class="fa-solid fa-paper-plane me-2"></i>Send Reset Link</span>
+        <span id="resetBtnLoading" style="display:none">
+          <span class="spinner-border spinner-border-sm me-2"></span>Sending...
+        </span>
+      </button>
+      <a href="#" class="forgot-link mt-3" id="backToLogin" style="text-align:center">
+        <i class="fa-solid fa-arrow-left me-1"></i>Back to sign in
+      </a>
+    </form>
+
+    <div class="security-badge">
+      <i class="fa-solid fa-lock-keyhole"></i>
+      <span>JWT authenticated &middot; OWASP hardened</span>
+    </div>
+  </div>
+
+  <!-- Bootstrap JS (self-hosted) -->
+  <script src="/static/vendor/bootstrap/bootstrap.bundle.min.js"></script>
+
+  <script>
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    const $ = id => document.getElementById(id);
+    const csrfToken = () => document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+
+    function showError(msg) {
+      $('errorMsg').textContent = msg;
+      $('alertError').style.display = 'block';
+    }
+    function hideError() { $('alertError').style.display = 'none'; }
+
+    function setLoading(btnId, loadingId, state) {
+      $(btnId).disabled = state;
+      $(loadingId).style.display = state ? 'inline' : 'none';
+      // toggle the sibling text span
+      $(loadingId).previousElementSibling.style.display = state ? 'none' : 'inline';
+    }
+
+    // ── Token storage ──────────────────────────────────────────────────────────
+    // FIX: Use sessionStorage instead of localStorage.
+    // sessionStorage is same-origin, scoped to the tab, and not subject to the
+    // cross-origin Tracking Prevention that blocks localStorage when resources
+    // are loaded from CDN origins. Tokens are cleared when the tab closes.
+    function saveTokens(data) {
+      try {
+        sessionStorage.setItem('wt_access_token', data.access_token);
+        sessionStorage.setItem('wt_refresh_token', data.refresh_token);
+        sessionStorage.setItem('wt_user', JSON.stringify(data.user));
+      } catch (e) {
+        // sessionStorage blocked (private browsing extreme mode) — tokens will
+        // live only in memory via the Authorization header on each request.
+        // The dashboard JS already handles the case where sessionStorage is empty.
+        console.warn('sessionStorage unavailable, tokens held in memory only.');
+        window._wtMemTokens = data;
+      }
+    }
+
+    // ── Login form ─────────────────────────────────────────────────────────────
+    let mfaRequired = false;
+
+    $('loginForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      hideError();
+      setLoading('submitBtn', 'btnLoading', true);
+
+      const payload = {
+        username: $('username').value.trim(),
+        password: $('password').value,
+      };
+
+      if (mfaRequired) {
+        const code = $('mfaCode').value.trim();
+        if (code.length !== 6) {
+          showError('Please enter your 6-digit MFA code.');
+          setLoading('submitBtn', 'btnLoading', false);
+          return;
+        }
+        payload.mfa_code = code;
+      }
+
+      try {
+        const resp = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken(),
+          },
+          body: JSON.stringify(payload),
+          credentials: 'same-origin',
+        });
+        const data = await resp.json();
+
+        if (resp.ok) {
+          saveTokens(data);
+          window.location.href = '/dashboard';
+        } else if (resp.status === 401 && data.error === 'mfa_required') {
+          mfaRequired = true;
+          $('mfaSection').style.display = 'block';
+          $('mfaCode').focus();
+          setLoading('submitBtn', 'btnLoading', false);
+        } else if (resp.status === 423) {
+          showError(data.message || 'Account is temporarily locked.');
+          setLoading('submitBtn', 'btnLoading', false);
+        } else {
+          showError(data.message || data.error || 'Authentication failed.');
+          setLoading('submitBtn', 'btnLoading', false);
+        }
+      } catch (err) {
+        showError('Network error — please check your connection.');
+        setLoading('submitBtn', 'btnLoading', false);
+      }
+    });
+
+    // ── Forgot password form ───────────────────────────────────────────────────
+    $('forgotLink').addEventListener('click', e => {
+      e.preventDefault();
+      hideError();
+      $('loginForm').style.display = 'none';
+      $('forgotForm').style.display = 'block';
+      $('resetEmail').focus();
+    });
+
+    $('backToLogin').addEventListener('click', e => {
+      e.preventDefault();
+      $('forgotForm').style.display = 'none';
+      $('loginForm').style.display = 'block';
+      $('username').focus();
+    });
+
+    $('forgotForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      hideError();
+      setLoading('resetBtn', 'resetBtnLoading', true);
+
+      const email = $('resetEmail').value.trim();
+      if (!email) {
+        showError('Please enter your email address.');
+        setLoading('resetBtn', 'resetBtnLoading', false);
+        return;
+      }
+
+      try {
+        await fetch('/api/v1/auth/forgot-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken(),
+          },
+          body: JSON.stringify({ email }),
+          credentials: 'same-origin',
+        });
+        // Always show success (API never reveals whether email exists)
+        $('forgotForm').innerHTML = `
+          <div style="text-align:center;padding:16px 0">
+            <i class="fa-solid fa-envelope-circle-check" style="font-size:2.5rem;color:var(--wt-success);margin-bottom:16px;display:block"></i>
+            <p style="color:#8892aa;font-size:.9rem">
+              If that email is registered, a reset link has been sent.<br>
+              Check your inbox and spam folder.
+            </p>
+            <a href="#" onclick="location.reload()" style="color:var(--wt-accent);font-size:.875rem">
+              <i class="fa-solid fa-arrow-left me-1"></i>Back to sign in
+            </a>
+          </div>`;
+      } catch (err) {
+        showError('Network error — please try again.');
+        setLoading('resetBtn', 'resetBtnLoading', false);
+      }
+    });
+
+    // Auto-focus
+    $('username').focus();
+  </script>
+</body>
+</html>
